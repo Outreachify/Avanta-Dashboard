@@ -15,6 +15,7 @@ export async function GET(request: NextRequest) {
     const workspaceId = searchParams.get("workspace_id");
     const campaignIdsParam = searchParams.get("campaign_ids");
     const period = searchParams.get("period") || "day";
+    const chartStartDate = searchParams.get("chart_start_date") || startDate;
 
     if (!startDate || !endDate) {
       return NextResponse.json({ error: "start_date and end_date are required" }, { status: 400 });
@@ -22,17 +23,18 @@ export async function GET(request: NextRequest) {
 
     const wsIdNum = workspaceId ? Number(workspaceId) : null;
     const campaignIds = campaignIdsParam ? campaignIdsParam.split(",").map(Number).filter((n) => !isNaN(n)) : null;
+    const fetchStart = chartStartDate && chartStartDate < startDate! ? chartStartDate : startDate!;
 
-    // Fetch all data with pagination
-    const [safeStats, safeMeetings, campaignsMeta, wsRows] = await Promise.all([
+    // Fetch all data with pagination (use wider range for charts)
+    const [allStats, allMeetings, campaignsMeta, wsRows] = await Promise.all([
       fetchAll<CampaignStatsRow>(supabase, "campaign_daily_stats", "campaign_id, workspace_id, date, emails_sent, replied, interested, bounced", (q) => {
-        let r = q.gte("date", startDate).lte("date", endDate);
+        let r = q.gte("date", fetchStart).lte("date", endDate);
         if (wsIdNum) r = r.eq("workspace_id", wsIdNum);
         if (campaignIds && campaignIds.length > 0) r = r.in("campaign_id", campaignIds);
         return r;
       }),
       fetchAll<MeetingRow>(supabase, "meetings_booked", "date, workspace_id, count", (q) => {
-        let r = q.gte("date", startDate).lte("date", endDate);
+        let r = q.gte("date", fetchStart).lte("date", endDate);
         if (wsIdNum) r = r.eq("workspace_id", wsIdNum);
         return r;
       }),
@@ -48,10 +50,15 @@ export async function GET(request: NextRequest) {
     const wsMap = new Map<number, string>();
     for (const ws of wsRows) wsMap.set(ws.id, ws.name);
 
-    // ---------- Daily chart ----------
+    // Split: KPI data (narrow) vs chart data (wide)
+    const safeStats = allStats.filter((r) => r.date >= startDate! && r.date <= endDate!);
+    const chartStats = allStats.filter((r) => r.date >= (chartStartDate || startDate!) && r.date <= endDate!);
+    const chartMeetings = allMeetings.filter((r) => r.date >= (chartStartDate || startDate!) && r.date <= endDate!);
+
+    // ---------- Chart (wider range) ----------
     const dailyMap = new Map<string, { emails_sent: number; replied: number; positive_replies: number; meeting_requests: number }>();
 
-    for (const row of safeStats) {
+    for (const row of chartStats) {
       const existing = dailyMap.get(row.date) ?? { emails_sent: 0, replied: 0, positive_replies: 0, meeting_requests: 0 };
       existing.emails_sent += row.emails_sent ?? 0;
       existing.replied += row.replied ?? 0;
@@ -59,7 +66,7 @@ export async function GET(request: NextRequest) {
       dailyMap.set(row.date, existing);
     }
 
-    for (const row of safeMeetings) {
+    for (const row of chartMeetings) {
       const existing = dailyMap.get(row.date) ?? { emails_sent: 0, replied: 0, positive_replies: 0, meeting_requests: 0 };
       existing.meeting_requests += row.count ?? 0;
       dailyMap.set(row.date, existing);

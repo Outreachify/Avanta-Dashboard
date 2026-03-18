@@ -14,6 +14,8 @@ export async function GET(request: NextRequest) {
     const endDate = searchParams.get("end_date");
     const workspaceId = searchParams.get("workspace_id");
     const period = searchParams.get("period") || "day";
+    // Chart uses a wider date range for trend analysis
+    const chartStartDate = searchParams.get("chart_start_date") || startDate;
 
     if (!startDate || !endDate) {
       return NextResponse.json(
@@ -22,22 +24,30 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Fetch all rows using pagination (Supabase caps at 1000 per request)
+    // Fetch data using the WIDER chart range (covers both KPI and chart needs)
+    // KPIs will filter to startDate-endDate, charts use chartStartDate-endDate
     const wsIdNum = workspaceId ? Number(workspaceId) : null;
+    const fetchStart = chartStartDate && chartStartDate < startDate! ? chartStartDate : startDate!;
 
-    const [safeStats, safeMeetings, wsRows] = await Promise.all([
+    const [allStats, allMeetings, wsRows] = await Promise.all([
       fetchAll<StatsRow>(supabase, "workspace_daily_stats", "date, workspace_id, emails_sent, replied, interested, bounced", (q) => {
-        let r = q.gte("date", startDate).lte("date", endDate);
+        let r = q.gte("date", fetchStart).lte("date", endDate);
         if (wsIdNum) r = r.eq("workspace_id", wsIdNum);
         return r;
       }),
       fetchAll<MeetingRow>(supabase, "meetings_booked", "date, workspace_id, count", (q) => {
-        let r = q.gte("date", startDate).lte("date", endDate);
+        let r = q.gte("date", fetchStart).lte("date", endDate);
         if (wsIdNum) r = r.eq("workspace_id", wsIdNum);
         return r;
       }),
       fetchAll<{ id: number; name: string }>(supabase, "workspaces", "id, name", (q) => q),
     ]);
+
+    // Split into KPI data (narrow range) and chart data (wide range)
+    const safeStats = allStats.filter((r) => r.date >= startDate! && r.date <= endDate!);
+    const safeMeetings = allMeetings.filter((r) => r.date >= startDate! && r.date <= endDate!);
+    const chartStats = allStats.filter((r) => r.date >= (chartStartDate || startDate!) && r.date <= endDate!);
+    const chartMeetings = allMeetings.filter((r) => r.date >= (chartStartDate || startDate!) && r.date <= endDate!);
 
     // Build workspace name map
     const wsMap = new Map<number, string>();
@@ -120,10 +130,10 @@ export async function GET(request: NextRequest) {
       },
     };
 
-    // ---------- Daily chart (raw daily) ----------
+    // ---------- Chart data (uses wider range for trend analysis) ----------
     const dailyMap = new Map<string, { emails_sent: number; replies: number; positive_replies: number; meeting_requests: number }>();
 
-    for (const row of safeStats) {
+    for (const row of chartStats) {
       const existing = dailyMap.get(row.date) ?? { emails_sent: 0, replies: 0, positive_replies: 0, meeting_requests: 0 };
       existing.emails_sent += row.emails_sent ?? 0;
       existing.replies += row.replied ?? 0;
@@ -131,7 +141,7 @@ export async function GET(request: NextRequest) {
       dailyMap.set(row.date, existing);
     }
 
-    for (const row of safeMeetings) {
+    for (const row of chartMeetings) {
       const existing = dailyMap.get(row.date) ?? { emails_sent: 0, replies: 0, positive_replies: 0, meeting_requests: 0 };
       existing.meeting_requests += row.count ?? 0;
       dailyMap.set(row.date, existing);

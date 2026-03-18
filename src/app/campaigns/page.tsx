@@ -13,12 +13,13 @@ import { ChevronDown, X, Search } from "lucide-react";
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 function CampaignsContent() {
-  const { startDate, endDate, workspaceId, period } = useDashboardFilters();
+  const { startDate, endDate, chartStartDate, workspaceId, period } = useDashboardFilters();
   const [selectedCampaigns, setSelectedCampaigns] = useState<string[]>([]);
 
   const params = new URLSearchParams({
     start_date: startDate,
     end_date: endDate,
+    chart_start_date: chartStartDate,
     period,
   });
   if (workspaceId) params.set("workspace_id", workspaceId);

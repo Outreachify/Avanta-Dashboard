@@ -14,11 +14,12 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 function ExecutiveSummaryContent() {
-  const { startDate, endDate, workspaceId, period } = useDashboardFilters();
+  const { startDate, endDate, chartStartDate, workspaceId, period } = useDashboardFilters();
 
   const params = new URLSearchParams({
     start_date: startDate,
     end_date: endDate,
+    chart_start_date: chartStartDate,
     period,
   });
   if (workspaceId) params.set("workspace_id", workspaceId);
