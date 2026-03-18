@@ -1,19 +1,39 @@
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+// Lazy-initialized clients (env vars not available during static build)
+let _supabase: SupabaseClient | null = null;
+let _serviceSupabase: SupabaseClient | null = null;
 
 // Client-side Supabase client (uses anon key)
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export function getSupabase() {
+  if (!_supabase) {
+    _supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    );
+  }
+  return _supabase;
+}
+
+// For backward compat — lazy getter
+export const supabase = new Proxy({} as SupabaseClient, {
+  get(_, prop) {
+    return (getSupabase() as unknown as Record<string | symbol, unknown>)[prop];
+  },
+});
 
 // Server-side Supabase client (uses service role key for admin ops)
 export function getServiceSupabase() {
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-  return createClient(supabaseUrl, serviceRoleKey);
+  if (!_serviceSupabase) {
+    _serviceSupabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+  }
+  return _serviceSupabase;
 }
 
 // Paginated fetch — Supabase limits to 1000 rows per request
-// This fetches ALL matching rows by paginating in chunks of 1000
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function fetchAll<T = Record<string, unknown>>(
   supabase: SupabaseClient,
