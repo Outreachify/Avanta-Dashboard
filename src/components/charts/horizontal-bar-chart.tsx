@@ -10,7 +10,7 @@ import {
   CartesianGrid,
   Cell,
 } from "recharts";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 
 interface HorizontalBarChartProps {
   title?: string;
@@ -19,6 +19,7 @@ interface HorizontalBarChartProps {
   nameKey: string;
   height?: number;
   color?: string;
+  maxItems?: number;
 }
 
 function CustomTooltip({
@@ -30,30 +31,37 @@ function CustomTooltip({
 }) {
   if (!active || !payload?.length) return null;
   const item = payload[0];
+  const label = String(
+    item.payload[
+      Object.keys(item.payload).find((k) => typeof item.payload[k] === "string") ?? "name"
+    ] ?? ""
+  );
   return (
-    <div className="rounded-lg border border-border bg-card px-3 py-2 shadow-lg">
-      <p className="text-sm font-medium text-foreground">
-        {String(item.payload[Object.keys(item.payload).find((k) => typeof item.payload[k] === "string") ?? "name"] ?? "")}
-      </p>
+    <div className="rounded-lg border border-border bg-card px-3 py-2 shadow-lg max-w-xs">
+      <p className="text-sm font-medium text-foreground break-words">{label}</p>
       <p className="text-sm text-muted-foreground">
-        {item.name}: <span className="font-medium text-foreground">{typeof item.value === "number" ? item.value.toLocaleString() : item.value}</span>
+        {item.name}:{" "}
+        <span className="font-medium text-foreground">
+          {typeof item.value === "number"
+            ? item.value % 1 === 0
+              ? item.value.toLocaleString()
+              : item.value.toFixed(2) + "%"
+            : item.value}
+        </span>
       </p>
     </div>
   );
 }
 
 const COLORS = [
-  "#6366f1",
-  "#818cf8",
-  "#a5b4fc",
-  "#c7d2fe",
-  "#8b5cf6",
-  "#a78bfa",
-  "#c4b5fd",
-  "#7c3aed",
-  "#5b21b6",
-  "#4f46e5",
+  "#6366f1", "#818cf8", "#a5b4fc", "#8b5cf6", "#a78bfa",
+  "#c4b5fd", "#7c3aed", "#5b21b6", "#4f46e5", "#4338ca",
 ];
+
+// Truncate long names for Y-axis labels
+function truncate(str: string, max: number): string {
+  return str.length > max ? str.slice(0, max) + "..." : str;
+}
 
 export function HorizontalBarChart({
   title,
@@ -62,46 +70,59 @@ export function HorizontalBarChart({
   nameKey,
   height,
   color,
+  maxItems = 20,
 }: HorizontalBarChartProps) {
-  const sorted = [...data].sort(
-    (a, b) => (Number(b[dataKey]) || 0) - (Number(a[dataKey]) || 0)
-  );
-  const chartHeight = height ?? Math.max(250, sorted.length * 36);
+  const sorted = [...data]
+    .sort((a, b) => (Number(b[dataKey]) || 0) - (Number(a[dataKey]) || 0))
+    .slice(0, maxItems);
+
+  const rowHeight = 32;
+  const chartHeight = height ?? Math.max(200, sorted.length * rowHeight + 40);
+
+  // Add truncated name for display
+  const chartData = sorted.map((item) => ({
+    ...item,
+    _displayName: truncate(String(item[nameKey] ?? ""), 28),
+  }));
 
   return (
     <Card>
       {title && (
         <CardHeader>
           <CardTitle>{title}</CardTitle>
+          {data.length > maxItems && (
+            <CardDescription>Showing top {maxItems} of {data.length}</CardDescription>
+          )}
         </CardHeader>
       )}
       <CardContent>
         <ResponsiveContainer width="100%" height={chartHeight}>
           <BarChart
-            data={sorted}
+            data={chartData}
             layout="vertical"
-            margin={{ top: 0, right: 20, left: 10, bottom: 0 }}
+            margin={{ top: 0, right: 20, left: 0, bottom: 0 }}
           >
             <CartesianGrid strokeDasharray="3 3" className="stroke-border" horizontal={false} />
             <XAxis
               type="number"
-              tick={{ fontSize: 12 }}
+              tick={{ fontSize: 11 }}
               className="text-muted-foreground"
               tickLine={false}
               axisLine={false}
             />
             <YAxis
               type="category"
-              dataKey={nameKey}
-              tick={{ fontSize: 12 }}
+              dataKey="_displayName"
+              tick={{ fontSize: 11 }}
               className="text-muted-foreground"
               tickLine={false}
               axisLine={false}
-              width={120}
+              width={180}
+              interval={0}
             />
             <Tooltip content={<CustomTooltip />} />
-            <Bar dataKey={dataKey} radius={[0, 4, 4, 0]} maxBarSize={28}>
-              {sorted.map((_, index) => (
+            <Bar dataKey={dataKey} radius={[0, 4, 4, 0]} maxBarSize={24} barSize={20}>
+              {chartData.map((_, index) => (
                 <Cell key={index} fill={color ?? COLORS[index % COLORS.length]} />
               ))}
             </Bar>
