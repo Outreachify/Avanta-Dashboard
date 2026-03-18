@@ -1,22 +1,28 @@
 import { NextRequest, NextResponse } from "next/server";
+import { POST as syncCampaigns } from "@/app/api/sync/campaigns/route";
+import { POST as syncMeetings } from "@/app/api/sync/meetings/route";
 
 export const maxDuration = 300;
 
-export async function GET(request: NextRequest) {
-  const baseUrl = request.nextUrl.origin;
-
+async function runSync(request: NextRequest) {
   console.log("[cron] Starting sync at", new Date().toISOString());
 
   try {
-    const [campaignsRes, meetingsRes] = await Promise.allSettled([
-      fetch(`${baseUrl}/api/sync/campaigns`, { method: "POST" }).then((r) => r.json()),
-      fetch(`${baseUrl}/api/sync/meetings`, { method: "POST" }).then((r) => r.json()),
+    // Create mock requests for the sync handlers
+    const origin = new URL(request.url).origin;
+    const campaignsReq = new NextRequest(`${origin}/api/sync/campaigns`, { method: "POST" });
+    const meetingsReq = new NextRequest(`${origin}/api/sync/meetings`, { method: "POST" });
+
+    // Call sync handlers directly (no HTTP self-call)
+    const [campaignsSettled, meetingsSettled] = await Promise.allSettled([
+      syncCampaigns(campaignsReq).then((r) => r.json()),
+      syncMeetings().then((r) => r.json()),
     ]);
 
     const result = {
       timestamp: new Date().toISOString(),
-      campaigns: campaignsRes.status === "fulfilled" ? campaignsRes.value : { error: String(campaignsRes.reason) },
-      meetings: meetingsRes.status === "fulfilled" ? meetingsRes.value : { error: String(meetingsRes.reason) },
+      campaigns: campaignsSettled.status === "fulfilled" ? campaignsSettled.value : { error: String(campaignsSettled.reason) },
+      meetings: meetingsSettled.status === "fulfilled" ? meetingsSettled.value : { error: String(meetingsSettled.reason) },
     };
 
     console.log("[cron] Sync complete");
@@ -28,7 +34,10 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// Also support POST for n8n
+export async function GET(request: NextRequest) {
+  return runSync(request);
+}
+
 export async function POST(request: NextRequest) {
-  return GET(request);
+  return runSync(request);
 }
