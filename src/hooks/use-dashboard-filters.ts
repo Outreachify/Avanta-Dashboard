@@ -2,7 +2,7 @@
 
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { useCallback } from "react";
-import { format, subDays, subWeeks, subMonths } from "date-fns";
+import { format, subDays } from "date-fns";
 
 export function useDashboardFilters() {
   const searchParams = useSearchParams();
@@ -11,8 +11,8 @@ export function useDashboardFilters() {
 
   const todayStr = format(new Date(), "yyyy-MM-dd");
 
-  // Default: Week view (last 5 weeks)
-  const startDate = searchParams.get("start_date") ?? format(subWeeks(new Date(), 4), "yyyy-MM-dd");
+  // Default: Week view (last 7 days)
+  const startDate = searchParams.get("start_date") ?? format(subDays(new Date(), 6), "yyyy-MM-dd");
   const endDate = searchParams.get("end_date") ?? todayStr;
   const workspaceId = searchParams.get("workspace_id") ?? "";
   const period = (searchParams.get("period") ?? "week") as "day" | "week" | "month";
@@ -52,14 +52,11 @@ export function useDashboardFilters() {
       const todayFmt = format(today, "yyyy-MM-dd");
       let newStart: string;
       if (p === "day") {
-        // Last 7 days, chart = daily points
-        newStart = format(subDays(today, 6), "yyyy-MM-dd");
+        newStart = todayFmt; // today only
       } else if (p === "week") {
-        // Last 5 weeks, chart = weekly points
-        newStart = format(subWeeks(today, 4), "yyyy-MM-dd");
+        newStart = format(subDays(today, 6), "yyyy-MM-dd"); // last 7 days
       } else {
-        // Last 6 months, chart = monthly points
-        newStart = format(subMonths(today, 5), "yyyy-MM-dd");
+        newStart = format(subDays(today, 29), "yyyy-MM-dd"); // last 30 days
       }
       updateParams({ period: p, start_date: newStart, end_date: todayFmt });
     },
