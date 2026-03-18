@@ -29,10 +29,6 @@ async function syncMeetings(ws: WorkspaceRow): Promise<WorkspaceResult> {
     dates_synced: 0,
   };
 
-  console.log(
-    `[meetings-sync] Processing workspace ${ws.id} ("${ws.name}") — sheet: ${ws.google_sheet_url}`
-  );
-
   const meetingsByDate = await readMeetingsFromSheet(ws.google_sheet_url);
 
   const rows = Object.entries(meetingsByDate).map(([date, count]) => ({
@@ -59,10 +55,6 @@ async function syncMeetings(ws: WorkspaceRow): Promise<WorkspaceResult> {
     }
     result.dates_synced = rows.length;
   }
-
-  console.log(
-    `[meetings-sync] Workspace ${ws.id} ("${ws.name}"): synced ${rows.length} dates`
-  );
 
   return result;
 }
@@ -97,10 +89,6 @@ export async function POST() {
       results: [],
     });
   }
-
-  console.log(
-    `[meetings-sync] Starting sync for ${workspacesWithSheets.length} workspaces`
-  );
 
   // Process workspaces in parallel batches of BATCH_SIZE
   for (let i = 0; i < workspacesWithSheets.length; i += BATCH_SIZE) {
@@ -140,7 +128,6 @@ export async function POST() {
       ? `${successfulWorkspaces.length} succeeded, ${failedWorkspaces.length} failed: ${failedWorkspaces.map((r) => `"${r.workspace_name}" (id=${r.workspace_id}): ${r.error}`).join("; ")}`
       : `All ${successfulWorkspaces.length} workspaces synced successfully`;
 
-  console.log(`[meetings-sync] Finished. ${summaryMessage}`);
 
   // Log to sync_log
   await supabase.from("sync_log").insert({

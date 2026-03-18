@@ -45,13 +45,10 @@ async function syncWorkspace(
     meeting_counts_synced: 0,
   };
 
-  console.log(`[campaign-sync] Processing workspace ${ws.id} ("${ws.name}")`);
-
   // 1. List campaigns using workspace token
   const campaigns = await wsListCampaigns(ws.api_token);
 
   if (!campaigns || campaigns.length === 0) {
-    console.log(`[campaign-sync] Workspace ${ws.id}: no campaigns found`);
     return result;
   }
 
@@ -170,9 +167,7 @@ async function syncWorkspace(
           }
         }
       } else {
-        console.warn(
-          `[campaign-sync] Workspace ${ws.id}: failed to fetch chart stats for a campaign: ${settledResult.reason}`
-        );
+        // campaign chart stats fetch failed silently
       }
     }
   }
@@ -218,16 +213,10 @@ async function syncWorkspace(
           }
         }
       }
-    } else {
-      console.log(`[campaign-sync] Workspace ${ws.id}: no "Meeting Request" tag found`);
     }
-  } catch (meetingErr) {
-    console.warn(`[campaign-sync] Workspace ${ws.id}: meeting count sync failed:`, meetingErr);
+  } catch {
+    // meeting count sync failed silently
   }
-
-  console.log(
-    `[campaign-sync] Workspace ${ws.id} ("${ws.name}"): ${result.campaigns_synced} campaigns, ${result.daily_stats_rows} ws rows, ${result.campaign_daily_stats_rows} camp rows, ${result.meeting_counts_synced} meeting counts`
-  );
 
   return result;
 }
