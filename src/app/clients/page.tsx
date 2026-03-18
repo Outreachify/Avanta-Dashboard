@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowUpDown, Key, Loader2, ExternalLink, Plus, X } from "lucide-react";
+import { ArrowUpDown, Key, Loader2, ExternalLink, Plus, X, Pencil, Check } from "lucide-react";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -50,6 +50,11 @@ export default function ClientsPage() {
   const [onboardSheetUrl, setOnboardSheetUrl] = useState("");
   const [onboarding, setOnboarding] = useState(false);
   const [onboardError, setOnboardError] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editToken, setEditToken] = useState("");
+  const [editSheetUrl, setEditSheetUrl] = useState("");
+  const [saving, setSaving] = useState(false);
 
   const clients = data?.clients ?? [];
 
@@ -146,6 +151,49 @@ export default function ClientsPage() {
     },
     [mutate]
   );
+
+  const startEdit = useCallback((client: Client) => {
+    setEditingId(client.id);
+    setEditName(client.name);
+    setEditToken(""); // don't prefill token for security
+    setEditSheetUrl(client.google_sheet_url ?? "");
+  }, []);
+
+  const cancelEdit = useCallback(() => {
+    setEditingId(null);
+    setEditName("");
+    setEditToken("");
+    setEditSheetUrl("");
+  }, []);
+
+  const handleSaveEdit = useCallback(async () => {
+    if (!editingId || !editName.trim()) return;
+    setSaving(true);
+    try {
+      const body: Record<string, unknown> = {
+        workspace_id: editingId,
+        name: editName.trim(),
+        google_sheet_url: editSheetUrl.trim() || null,
+      };
+      // Only send api_token if user actually typed a new one
+      if (editToken.trim()) {
+        body.api_token = editToken.trim();
+      }
+      const res = await fetch("/api/clients", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (res.ok) {
+        cancelEdit();
+        mutate();
+      }
+    } catch (err) {
+      console.error("Failed to save:", err);
+    } finally {
+      setSaving(false);
+    }
+  }, [editingId, editName, editToken, editSheetUrl, mutate, cancelEdit]);
 
   const handleOnboard = useCallback(async () => {
     if (!onboardName.trim() || !onboardToken.trim()) return;
@@ -323,66 +371,100 @@ export default function ClientsPage() {
                 </TableCell>
               </TableRow>
             ) : (
-              filtered.map((client) => (
-                <TableRow key={client.id}>
-                  <TableCell className="font-medium">{client.name}</TableCell>
-                  <TableCell>
-                    <button
-                      onClick={() => handleToggleStatus(client)}
-                      disabled={togglingId === client.id}
-                      className="cursor-pointer disabled:opacity-50"
-                    >
-                      <Badge
-                        className={
-                          client.client_status === "active"
-                            ? "bg-green-500/15 text-green-700 dark:text-green-400 border-green-500/25"
-                            : "bg-red-500/15 text-red-700 dark:text-red-400 border-red-500/25"
-                        }
+              filtered.map((client) => {
+                const isEditing = editingId === client.id;
+                return (
+                  <TableRow key={client.id}>
+                    <TableCell className="font-medium">
+                      {isEditing ? (
+                        <Input value={editName} onChange={(e) => setEditName(e.target.value)} className="h-8 text-sm" />
+                      ) : (
+                        client.name
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <button
+                        onClick={() => handleToggleStatus(client)}
+                        disabled={togglingId === client.id}
+                        className="cursor-pointer disabled:opacity-50"
                       >
-                        {togglingId === client.id ? "..." : client.client_status}
-                      </Badge>
-                    </button>
-                  </TableCell>
-                  <TableCell>
-                    <code className="text-xs text-muted-foreground">
-                      {client.api_token_masked}
-                    </code>
-                  </TableCell>
-                  <TableCell>
-                    {client.google_sheet_url ? (
-                      <a
-                        href={client.google_sheet_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-indigo-600 hover:underline dark:text-indigo-400 text-sm"
-                      >
-                        Open
-                        <ExternalLink className="h-3 w-3" />
-                      </a>
-                    ) : (
-                      <span className="text-muted-foreground text-sm">--</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {!client.has_api_token && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleGenerateOne(client.id)}
-                        disabled={generatingId === client.id}
-                        className="gap-1.5"
-                      >
-                        {generatingId === client.id ? (
-                          <Loader2 className="h-3 w-3 animate-spin" />
+                        <Badge
+                          className={
+                            client.client_status === "active"
+                              ? "bg-green-500/15 text-green-700 dark:text-green-400 border-green-500/25"
+                              : "bg-red-500/15 text-red-700 dark:text-red-400 border-red-500/25"
+                          }
+                        >
+                          {togglingId === client.id ? "..." : client.client_status}
+                        </Badge>
+                      </button>
+                    </TableCell>
+                    <TableCell>
+                      {isEditing ? (
+                        <Input
+                          value={editToken}
+                          onChange={(e) => setEditToken(e.target.value)}
+                          placeholder="Leave blank to keep current"
+                          className="h-8 text-sm"
+                        />
+                      ) : (
+                        <code className="text-xs text-muted-foreground">
+                          {client.api_token_masked}
+                        </code>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {isEditing ? (
+                        <Input
+                          value={editSheetUrl}
+                          onChange={(e) => setEditSheetUrl(e.target.value)}
+                          placeholder="Google Sheet URL"
+                          className="h-8 text-sm"
+                        />
+                      ) : client.google_sheet_url ? (
+                        <a
+                          href={client.google_sheet_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-indigo-600 hover:underline dark:text-indigo-400 text-sm"
+                        >
+                          Open
+                          <ExternalLink className="h-3 w-3" />
+                        </a>
+                      ) : (
+                        <span className="text-muted-foreground text-sm">--</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-1.5">
+                        {isEditing ? (
+                          <>
+                            <Button variant="outline" size="sm" onClick={cancelEdit} className="gap-1 h-7 px-2">
+                              <X className="h-3 w-3" /> Cancel
+                            </Button>
+                            <Button size="sm" onClick={handleSaveEdit} disabled={saving || !editName.trim()} className="gap-1 h-7 px-2">
+                              {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+                              Save
+                            </Button>
+                          </>
                         ) : (
-                          <Key className="h-3 w-3" />
+                          <>
+                            <Button variant="ghost" size="sm" onClick={() => startEdit(client)} className="gap-1 h-7 px-2">
+                              <Pencil className="h-3 w-3" />
+                            </Button>
+                            {!client.has_api_token && (
+                              <Button variant="outline" size="sm" onClick={() => handleGenerateOne(client.id)} disabled={generatingId === client.id} className="gap-1 h-7 px-2">
+                                {generatingId === client.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Key className="h-3 w-3" />}
+                                Generate Token
+                              </Button>
+                            )}
+                          </>
                         )}
-                        Generate Token
-                      </Button>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })
             )}
           </TableBody>
         </Table>

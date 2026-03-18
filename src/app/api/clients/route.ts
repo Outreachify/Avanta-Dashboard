@@ -87,6 +87,41 @@ export async function POST(request: NextRequest) {
   }
 }
 
+export async function PUT(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const { workspace_id, name, api_token, google_sheet_url } = body;
+
+    if (!workspace_id) {
+      return NextResponse.json({ error: "workspace_id is required" }, { status: 400 });
+    }
+
+    const supabase = getServiceSupabase();
+
+    // Build update object with only provided fields
+    const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
+    if (name !== undefined) updates.name = name.trim();
+    if (api_token !== undefined) updates.api_token = api_token.trim() || null;
+    if (google_sheet_url !== undefined) updates.google_sheet_url = google_sheet_url.trim() || null;
+
+    const { error } = await supabase
+      .from("workspaces")
+      .update(updates)
+      .eq("id", workspace_id);
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ success: true, workspace_id });
+  } catch (err) {
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : "Unknown error" },
+      { status: 500 }
+    );
+  }
+}
+
 export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json();
