@@ -102,12 +102,16 @@ export function Header() {
         </div>
 
         {/* Client Filter */}
-        <Select value={workspaceId} onValueChange={(val) => setWorkspaceId(val ?? "")}>
-          <SelectTrigger className="h-8 min-w-[140px]">
-            <SelectValue placeholder="All Clients" />
+        <Select value={workspaceId || "all"} onValueChange={(val) => setWorkspaceId(!val || val === "all" ? "" : val)}>
+          <SelectTrigger className="h-8 min-w-[200px]">
+            <SelectValue>
+              {workspaceId
+                ? workspaces.find((ws) => ws.workspace_id === workspaceId)?.workspace_name ?? "Client"
+                : "All Clients"}
+            </SelectValue>
           </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="">All Clients</SelectItem>
+          <SelectContent className="max-h-80">
+            <SelectItem value="all">All Clients</SelectItem>
             {workspaces.map((ws) => (
               <SelectItem key={ws.workspace_id} value={ws.workspace_id}>
                 {ws.workspace_name}
