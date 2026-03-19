@@ -126,8 +126,8 @@ function parseDate(dateStr: string): string | null {
       // Sanity check: serial dates for reasonable years (2000-2100) are ~36526-73050
       // Be generous: anything between 1 and 200000
       if (serial >= 1 && serial <= 200000) {
-        const ms = SHEETS_EPOCH.getTime() + Math.round(serial) * 86400000;
-        const d = new Date(ms);
+        // Use UTC to avoid timezone shifts
+        const d = new Date(Date.UTC(1899, 11, 30) + Math.round(serial) * 86400000);
         if (!isNaN(d.getTime())) {
           return d.toISOString().split("T")[0];
         }
@@ -141,10 +141,8 @@ function parseDate(dateStr: string): string | null {
       const day = parseInt(slashParts[1], 10);
       const year = parseInt(slashParts[2], 10);
       if (!isNaN(month) && !isNaN(day) && !isNaN(year) && year > 1900) {
-        const d = new Date(year, month - 1, day);
-        if (!isNaN(d.getTime())) {
-          return d.toISOString().split("T")[0];
-        }
+        // Use string formatting to avoid timezone issues
+        return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
       }
     }
 
