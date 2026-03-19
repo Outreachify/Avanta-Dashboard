@@ -4,7 +4,8 @@ import { readMeetingsFromSheet } from "@/lib/google-sheets";
 
 export const maxDuration = 300;
 
-const BATCH_SIZE = 10;
+const BATCH_SIZE = 5;
+const BATCH_DELAY_MS = 15000; // 15s between batches to stay under Google Sheets 60 reads/min quota
 
 interface WorkspaceRow {
   id: number;
@@ -90,8 +91,9 @@ export async function POST() {
     });
   }
 
-  // Process workspaces in parallel batches of BATCH_SIZE
+  // Process workspaces in batches with delay to respect Google Sheets API quota
   for (let i = 0; i < workspacesWithSheets.length; i += BATCH_SIZE) {
+    if (i > 0) await new Promise((r) => setTimeout(r, BATCH_DELAY_MS));
     const batch = workspacesWithSheets.slice(i, i + BATCH_SIZE);
     const batchResults = await Promise.allSettled(
       batch.map((ws) => syncMeetings(ws as WorkspaceRow))
